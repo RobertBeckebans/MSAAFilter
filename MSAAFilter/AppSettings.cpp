@@ -17,33 +17,53 @@ static const char* FilterTypesLabels[10] =
     "Box",
     "Triangle",
     "Gaussian",
-    "BlackmanHarris",
+    "Blackman-Harris",
     "Smoothstep",
-    "BSpline",
-    "CatmullRom",
+    "B-Spline",
+    "Catmull-Rom",
     "Mitchell",
-    "GeneralizedCubic",
+    "Generalized Cubic",
     "Sinc",
 };
 
-static const char* JitterModesLabels[3] =
+static const char* ClampModesLabels[4] =
 {
-    "None",
-    "Uniform2x",
-    "Hammersly16",
+    "Disabled",
+    "RGB Clamp",
+    "RGB Clip",
+    "Variance Clip",
 };
 
-static const char* ScenesLabels[2] =
+static const char* JitterModesLabels[5] =
+{
+    "None",
+    "Uniform 2x",
+    "Hammersley 4x",
+    "Hammersley 8x",
+    "Hammersley 16x",
+};
+
+static const char* DilationModesLabels[3] =
+{
+    "Center Average",
+    "Dilate - Nearest Depth",
+    "Dilate - Greatest Velocity",
+};
+
+static const char* ScenesLabels[5] =
 {
     "RoboHand",
-    "Plane",
+    "Plane (Bricks)",
+    "Plane (UI)",
+    "Soldier",
+    "Tower",
 };
 
 namespace AppSettings
 {
     MSAAModesSetting MSAAMode;
-    FilterTypesSetting FilterType;
-    FloatSetting FilterSize;
+    FilterTypesSetting ResolveFilterType;
+    FloatSetting ResolveFilterDiameter;
     FloatSetting GaussianSigma;
     FloatSetting CubicB;
     FloatSetting CubicC;
@@ -56,11 +76,17 @@ namespace AppSettings
     BoolSetting EnableTemporalAA;
     FloatSetting TemporalAABlendFactor;
     BoolSetting UseTemporalColorWeighting;
-    BoolSetting ClampPrevColor;
+    ClampModesSetting NeighborhoodClampMode;
+    FloatSetting VarianceClipGamma;
     JitterModesSetting JitterMode;
+    FloatSetting JitterScale;
     FloatSetting LowFreqWeight;
     FloatSetting HiFreqWeight;
     FloatSetting SharpeningAmount;
+    DilationModesSetting DilationMode;
+    FloatSetting MipBias;
+    FilterTypesSetting ReprojectionFilter;
+    BoolSetting UseStandardReprojection;
     ScenesSetting CurrentScene;
     DirectionSetting LightDirection;
     ColorSetting LightColor;
@@ -77,6 +103,7 @@ namespace AppSettings
     FloatSetting ModelRotationSpeed;
     BoolSetting DoubleSyncInterval;
     FloatSetting ExposureScale;
+    BoolSetting EnableZoom;
     FloatSetting BloomExposure;
     FloatSetting BloomMagnitude;
     FloatSetting BloomBlurSigma;
@@ -91,11 +118,11 @@ namespace AppSettings
         MSAAMode.Initialize(tweakBar, "MSAAMode", "Anti Aliasing", "MSAAMode", "", MSAAModes::MSAA4x, 4, MSAAModesLabels);
         Settings.AddSetting(&MSAAMode);
 
-        FilterType.Initialize(tweakBar, "FilterType", "Anti Aliasing", "Filter Type", "", FilterTypes::Smoothstep, 10, FilterTypesLabels);
-        Settings.AddSetting(&FilterType);
+        ResolveFilterType.Initialize(tweakBar, "ResolveFilterType", "Anti Aliasing", "Resolve Filter Type", "", FilterTypes::BSpline, 10, FilterTypesLabels);
+        Settings.AddSetting(&ResolveFilterType);
 
-        FilterSize.Initialize(tweakBar, "FilterSize", "Anti Aliasing", "Filter Size", "", 2.0000f, 0.0000f, 6.0000f, 0.0100f, ConversionMode::None, 1.0000f);
-        Settings.AddSetting(&FilterSize);
+        ResolveFilterDiameter.Initialize(tweakBar, "ResolveFilterDiameter", "Anti Aliasing", "Resolve Filter Diameter", "", 2.0000f, 0.0000f, 6.0000f, 0.0100f, ConversionMode::None, 1.0000f);
+        Settings.AddSetting(&ResolveFilterDiameter);
 
         GaussianSigma.Initialize(tweakBar, "GaussianSigma", "Anti Aliasing", "Gaussian Sigma", "", 0.5000f, 0.0100f, 1.0000f, 0.0100f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&GaussianSigma);
@@ -127,17 +154,23 @@ namespace AppSettings
         EnableTemporalAA.Initialize(tweakBar, "EnableTemporalAA", "Anti Aliasing", "Enable Temporal AA", "", true);
         Settings.AddSetting(&EnableTemporalAA);
 
-        TemporalAABlendFactor.Initialize(tweakBar, "TemporalAABlendFactor", "Anti Aliasing", "Temporal AABlend Factor", "", 0.5000f, 0.0000f, 1.0000f, 0.0100f, ConversionMode::None, 1.0000f);
+        TemporalAABlendFactor.Initialize(tweakBar, "TemporalAABlendFactor", "Anti Aliasing", "Temporal AABlend Factor", "", 0.9000f, 0.0000f, 1.0000f, 0.0010f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&TemporalAABlendFactor);
 
-        UseTemporalColorWeighting.Initialize(tweakBar, "UseTemporalColorWeighting", "Anti Aliasing", "Use Temporal Color Weighting", "", true);
+        UseTemporalColorWeighting.Initialize(tweakBar, "UseTemporalColorWeighting", "Anti Aliasing", "Use Temporal Color Weighting", "", false);
         Settings.AddSetting(&UseTemporalColorWeighting);
 
-        ClampPrevColor.Initialize(tweakBar, "ClampPrevColor", "Anti Aliasing", "Clamp Prev Color", "", true);
-        Settings.AddSetting(&ClampPrevColor);
+        NeighborhoodClampMode.Initialize(tweakBar, "NeighborhoodClampMode", "Anti Aliasing", "Neighborhood Clamp Mode", "", ClampModes::Variance_Clip, 4, ClampModesLabels);
+        Settings.AddSetting(&NeighborhoodClampMode);
 
-        JitterMode.Initialize(tweakBar, "JitterMode", "Anti Aliasing", "Jitter Mode", "", JitterModes::Uniform2x, 3, JitterModesLabels);
+        VarianceClipGamma.Initialize(tweakBar, "VarianceClipGamma", "Anti Aliasing", "Variance Clip Gamma", "", 1.5000f, 0.0000f, 2.0000f, 0.0100f, ConversionMode::None, 1.0000f);
+        Settings.AddSetting(&VarianceClipGamma);
+
+        JitterMode.Initialize(tweakBar, "JitterMode", "Anti Aliasing", "Jitter Mode", "", JitterModes::Hammersley4x, 5, JitterModesLabels);
         Settings.AddSetting(&JitterMode);
+
+        JitterScale.Initialize(tweakBar, "JitterScale", "Anti Aliasing", "Jitter Scale", "", 1.0000f, 0.0000f, 340282300000000000000000000000000000000.0000f, 0.0100f, ConversionMode::None, 1.0000f);
+        Settings.AddSetting(&JitterScale);
 
         LowFreqWeight.Initialize(tweakBar, "LowFreqWeight", "Anti Aliasing", "Low Freq Weight", "", 0.2500f, 0.0000f, 100.0000f, 0.0100f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&LowFreqWeight);
@@ -148,7 +181,19 @@ namespace AppSettings
         SharpeningAmount.Initialize(tweakBar, "SharpeningAmount", "Anti Aliasing", "Sharpening Amount", "", 0.0000f, 0.0000f, 1.0000f, 0.0100f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&SharpeningAmount);
 
-        CurrentScene.Initialize(tweakBar, "CurrentScene", "Scene Controls", "Current Scene", "", Scenes::RoboHand, 2, ScenesLabels);
+        DilationMode.Initialize(tweakBar, "DilationMode", "Anti Aliasing", "Dilation Mode", "", DilationModes::DilateNearestDepth, 3, DilationModesLabels);
+        Settings.AddSetting(&DilationMode);
+
+        MipBias.Initialize(tweakBar, "MipBias", "Anti Aliasing", "Mip Bias", "", 0.0000f, -340282300000000000000000000000000000000.0000f, 0.0000f, 0.0100f, ConversionMode::None, 1.0000f);
+        Settings.AddSetting(&MipBias);
+
+        ReprojectionFilter.Initialize(tweakBar, "ReprojectionFilter", "Anti Aliasing", "Reprojection Filter", "", FilterTypes::CatmullRom, 10, FilterTypesLabels);
+        Settings.AddSetting(&ReprojectionFilter);
+
+        UseStandardReprojection.Initialize(tweakBar, "UseStandardReprojection", "Anti Aliasing", "Use Standard Reprojection", "", false);
+        Settings.AddSetting(&UseStandardReprojection);
+
+        CurrentScene.Initialize(tweakBar, "CurrentScene", "Scene Controls", "Current Scene", "", Scenes::RoboHand, 5, ScenesLabels);
         Settings.AddSetting(&CurrentScene);
 
         LightDirection.Initialize(tweakBar, "LightDirection", "Scene Controls", "Light Direction", "The direction of the light", Float3(-0.7500f, 0.9770f, -0.4000f));
@@ -196,6 +241,9 @@ namespace AppSettings
         ExposureScale.Initialize(tweakBar, "ExposureScale", "Scene Controls", "Exposure Scale", "", 0.0000f, -16.0000f, 16.0000f, 0.0100f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&ExposureScale);
 
+        EnableZoom.Initialize(tweakBar, "EnableZoom", "Scene Controls", "Enable Zoom", "", false);
+        Settings.AddSetting(&EnableZoom);
+
         BloomExposure.Initialize(tweakBar, "BloomExposure", "Post Processing", "Bloom Exposure Offset", "Exposure offset applied to generate the input of the bloom pass", -4.0000f, -10.0000f, 0.0000f, 0.0100f, ConversionMode::None, 1.0000f);
         Settings.AddSetting(&BloomExposure);
 
@@ -224,8 +272,8 @@ namespace AppSettings
     void UpdateCBuffer(ID3D11DeviceContext* context)
     {
         CBuffer.Data.MSAAMode = MSAAMode;
-        CBuffer.Data.FilterType = FilterType;
-        CBuffer.Data.FilterSize = FilterSize;
+        CBuffer.Data.ResolveFilterType = ResolveFilterType;
+        CBuffer.Data.ResolveFilterDiameter = ResolveFilterDiameter;
         CBuffer.Data.GaussianSigma = GaussianSigma;
         CBuffer.Data.CubicB = CubicB;
         CBuffer.Data.CubicC = CubicC;
@@ -237,10 +285,15 @@ namespace AppSettings
         CBuffer.Data.EnableTemporalAA = EnableTemporalAA;
         CBuffer.Data.TemporalAABlendFactor = TemporalAABlendFactor;
         CBuffer.Data.UseTemporalColorWeighting = UseTemporalColorWeighting;
-        CBuffer.Data.ClampPrevColor = ClampPrevColor;
+        CBuffer.Data.NeighborhoodClampMode = NeighborhoodClampMode;
+        CBuffer.Data.VarianceClipGamma = VarianceClipGamma;
         CBuffer.Data.LowFreqWeight = LowFreqWeight;
         CBuffer.Data.HiFreqWeight = HiFreqWeight;
         CBuffer.Data.SharpeningAmount = SharpeningAmount;
+        CBuffer.Data.DilationMode = DilationMode;
+        CBuffer.Data.MipBias = MipBias;
+        CBuffer.Data.ReprojectionFilter = ReprojectionFilter;
+        CBuffer.Data.UseStandardReprojection = UseStandardReprojection;
         CBuffer.Data.CurrentScene = CurrentScene;
         CBuffer.Data.LightDirection = LightDirection;
         CBuffer.Data.LightColor = LightColor;
@@ -257,6 +310,7 @@ namespace AppSettings
         CBuffer.Data.ModelRotationSpeed = ModelRotationSpeed;
         CBuffer.Data.DoubleSyncInterval = DoubleSyncInterval;
         CBuffer.Data.ExposureScale = ExposureScale;
+        CBuffer.Data.EnableZoom = EnableZoom;
         CBuffer.Data.BloomExposure = BloomExposure;
         CBuffer.Data.BloomMagnitude = BloomMagnitude;
         CBuffer.Data.BloomBlurSigma = BloomBlurSigma;
@@ -283,13 +337,14 @@ namespace AppSettings
         bool enableTemporal = EnableTemporalAA.Value() ? true : false;
         JitterMode.SetEditable(enableTemporal);
         UseTemporalColorWeighting.SetEditable(enableTemporal);
-        ClampPrevColor.SetEditable(enableTemporal);
+        NeighborhoodClampMode.SetEditable(enableTemporal);
         LowFreqWeight.SetEditable(enableTemporal);
         HiFreqWeight.SetEditable(enableTemporal);
+        DilationMode.SetEditable(enableTemporal);
 
-        bool generalCubic = FilterType == FilterTypes::GeneralizedCubic;
+        bool generalCubic = ResolveFilterType == FilterTypes::GeneralizedCubic;
         CubicB.SetEditable(generalCubic);
         CubicC.SetEditable(generalCubic);
-        GaussianSigma.SetEditable(FilterType == FilterTypes::Gaussian);
+        GaussianSigma.SetEditable(ResolveFilterType == FilterTypes::Gaussian);
     }
 }

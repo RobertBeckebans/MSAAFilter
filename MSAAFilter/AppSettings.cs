@@ -30,11 +30,19 @@ public class Settings
         Box = 0,
         Triangle,
         Gaussian,
+
+        [EnumLabel("Blackman-Harris")]
         BlackmanHarris,
         Smoothstep,
+
+        [EnumLabel("B-Spline")]
         BSpline,
+
+        [EnumLabel("Catmull-Rom")]
         CatmullRom,
         Mitchell,
+
+        [EnumLabel("Generalized Cubic")]
         GeneralizedCubic,
         Sinc,
     }
@@ -42,26 +50,70 @@ public class Settings
     enum Scenes
     {
         RoboHand,
-        Plane
+
+        [EnumLabel("Plane (Bricks)")]
+        BrickPlane,
+
+        [EnumLabel("Plane (UI)")]
+        UIPlane,
+
+        Soldier,
+        Tower,
     }
 
     enum JitterModes
     {
         None,
+
+        [EnumLabel("Uniform 2x")]
         Uniform2x,
-        Hammersly16,
+
+        [EnumLabel("Hammersley 4x")]
+        Hammersley4x,
+
+        [EnumLabel("Hammersley 8x")]
+        Hammersley8x,
+
+        [EnumLabel("Hammersley 16x")]
+        Hammersley16x,
+    }
+
+    enum DilationModes
+    {
+        [EnumLabel("Center Average")]
+        CenterAverage,
+
+        [EnumLabel("Dilate - Nearest Depth")]
+        DilateNearestDepth,
+
+        [EnumLabel("Dilate - Greatest Velocity")]
+        DilateGreatestVelocity,
+    }
+
+    enum ClampModes
+    {
+        Disabled,
+
+        [EnumLabel("RGB Clamp")]
+        RGB_Clamp,
+
+        [EnumLabel("RGB Clip")]
+        RGB_Clip,
+
+        [EnumLabel("Variance Clip")]
+        Variance_Clip,
     }
 
     public class AntiAliasing
     {
         MSAAModes MSAAMode = MSAAModes.MSAA4x;
 
-        FilterTypes FilterType = FilterTypes.Smoothstep;
+        FilterTypes ResolveFilterType = FilterTypes.BSpline;
 
         [MinValue(0.0f)]
         [MaxValue(6.0f)]
         [StepSize(0.01f)]
-        float FilterSize = 2.0f;
+        float ResolveFilterDiameter = 2.0f;
 
         [MinValue(0.01f)]
         [MaxValue(1.0f)]
@@ -97,14 +149,23 @@ public class Settings
 
         [MinValue(0.0f)]
         [MaxValue(1.0f)]
-        float TemporalAABlendFactor = 0.5f;
+        [StepSize(0.001f)]
+        float TemporalAABlendFactor = 0.9f;
 
-        bool UseTemporalColorWeighting = true;
+        bool UseTemporalColorWeighting = false;
 
-        bool ClampPrevColor = true;
+        ClampModes NeighborhoodClampMode = ClampModes.Variance_Clip;
+
+        [MinValue(0.0f)]
+        [MaxValue(2.0f)]
+        float VarianceClipGamma = 1.5f;
 
         [UseAsShaderConstant(false)]
-        JitterModes JitterMode = JitterModes.Uniform2x;
+        JitterModes JitterMode = JitterModes.Hammersley4x;
+
+        [MinValue(0.0f)]
+        [UseAsShaderConstant(false)]
+        float JitterScale = 1.0f;
 
         [MinValue(0.0f)]
         [MaxValue(100.0f)]
@@ -117,6 +178,15 @@ public class Settings
         [MinValue(0.0f)]
         [MaxValue(1.0f)]
         float SharpeningAmount = 0.0f;
+
+        DilationModes DilationMode = DilationModes.DilateNearestDepth;
+
+        [MaxValue(0.0f)]
+        float MipBias = 0.0f;
+
+        FilterTypes ReprojectionFilter = FilterTypes.CatmullRom;
+
+        bool UseStandardReprojection = false;
     }
 
     public class SceneControls
@@ -184,6 +254,8 @@ public class Settings
         [MinValue(-16.0f)]
         [MaxValue(16.0f)]
         float ExposureScale = 0.0f;
+
+        bool EnableZoom = false;
     }
 
     public class PostProcessing

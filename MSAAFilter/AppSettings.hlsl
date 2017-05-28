@@ -1,8 +1,8 @@
 cbuffer AppSettings : register(b7)
 {
     int MSAAMode;
-    int FilterType;
-    float FilterSize;
+    int ResolveFilterType;
+    float ResolveFilterDiameter;
     float GaussianSigma;
     float CubicB;
     float CubicC;
@@ -14,10 +14,15 @@ cbuffer AppSettings : register(b7)
     bool EnableTemporalAA;
     float TemporalAABlendFactor;
     bool UseTemporalColorWeighting;
-    bool ClampPrevColor;
+    int NeighborhoodClampMode;
+    float VarianceClipGamma;
     float LowFreqWeight;
     float HiFreqWeight;
     float SharpeningAmount;
+    int DilationMode;
+    float MipBias;
+    int ReprojectionFilter;
+    bool UseStandardReprojection;
     int CurrentScene;
     float3 LightDirection;
     float3 LightColor;
@@ -34,6 +39,7 @@ cbuffer AppSettings : register(b7)
     float ModelRotationSpeed;
     bool DoubleSyncInterval;
     float ExposureScale;
+    bool EnableZoom;
     float BloomExposure;
     float BloomMagnitude;
     float BloomBlurSigma;
@@ -56,12 +62,26 @@ static const int FilterTypes_Mitchell = 7;
 static const int FilterTypes_GeneralizedCubic = 8;
 static const int FilterTypes_Sinc = 9;
 
+static const int ClampModes_Disabled = 0;
+static const int ClampModes_RGB_Clamp = 1;
+static const int ClampModes_RGB_Clip = 2;
+static const int ClampModes_Variance_Clip = 3;
+
 static const int JitterModes_None = 0;
 static const int JitterModes_Uniform2x = 1;
-static const int JitterModes_Hammersly16 = 2;
+static const int JitterModes_Hammersley4x = 2;
+static const int JitterModes_Hammersley8x = 3;
+static const int JitterModes_Hammersley16x = 4;
+
+static const int DilationModes_CenterAverage = 0;
+static const int DilationModes_DilateNearestDepth = 1;
+static const int DilationModes_DilateGreatestVelocity = 2;
 
 static const int Scenes_RoboHand = 0;
-static const int Scenes_Plane = 1;
+static const int Scenes_BrickPlane = 1;
+static const int Scenes_UIPlane = 2;
+static const int Scenes_Soldier = 3;
+static const int Scenes_Tower = 4;
 
 static const bool EnableAutoExposure = false;
 static const float KeyValue = 0.1150f;

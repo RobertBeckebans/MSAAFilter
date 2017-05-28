@@ -36,21 +36,49 @@ enum class FilterTypes
 
 typedef EnumSettingT<FilterTypes> FilterTypesSetting;
 
+enum class ClampModes
+{
+    Disabled = 0,
+    RGB_Clamp = 1,
+    RGB_Clip = 2,
+    Variance_Clip = 3,
+
+    NumValues
+};
+
+typedef EnumSettingT<ClampModes> ClampModesSetting;
+
 enum class JitterModes
 {
     None = 0,
     Uniform2x = 1,
-    Hammersly16 = 2,
+    Hammersley4x = 2,
+    Hammersley8x = 3,
+    Hammersley16x = 4,
 
     NumValues
 };
 
 typedef EnumSettingT<JitterModes> JitterModesSetting;
 
+enum class DilationModes
+{
+    CenterAverage = 0,
+    DilateNearestDepth = 1,
+    DilateGreatestVelocity = 2,
+
+    NumValues
+};
+
+typedef EnumSettingT<DilationModes> DilationModesSetting;
+
 enum class Scenes
 {
     RoboHand = 0,
-    Plane = 1,
+    BrickPlane = 1,
+    UIPlane = 2,
+    Soldier = 3,
+    Tower = 4,
 
     NumValues
 };
@@ -64,8 +92,8 @@ namespace AppSettings
     static const float AdaptationRate = 0.5000f;
 
     extern MSAAModesSetting MSAAMode;
-    extern FilterTypesSetting FilterType;
-    extern FloatSetting FilterSize;
+    extern FilterTypesSetting ResolveFilterType;
+    extern FloatSetting ResolveFilterDiameter;
     extern FloatSetting GaussianSigma;
     extern FloatSetting CubicB;
     extern FloatSetting CubicC;
@@ -78,11 +106,17 @@ namespace AppSettings
     extern BoolSetting EnableTemporalAA;
     extern FloatSetting TemporalAABlendFactor;
     extern BoolSetting UseTemporalColorWeighting;
-    extern BoolSetting ClampPrevColor;
+    extern ClampModesSetting NeighborhoodClampMode;
+    extern FloatSetting VarianceClipGamma;
     extern JitterModesSetting JitterMode;
+    extern FloatSetting JitterScale;
     extern FloatSetting LowFreqWeight;
     extern FloatSetting HiFreqWeight;
     extern FloatSetting SharpeningAmount;
+    extern DilationModesSetting DilationMode;
+    extern FloatSetting MipBias;
+    extern FilterTypesSetting ReprojectionFilter;
+    extern BoolSetting UseStandardReprojection;
     extern ScenesSetting CurrentScene;
     extern DirectionSetting LightDirection;
     extern ColorSetting LightColor;
@@ -99,6 +133,7 @@ namespace AppSettings
     extern FloatSetting ModelRotationSpeed;
     extern BoolSetting DoubleSyncInterval;
     extern FloatSetting ExposureScale;
+    extern BoolSetting EnableZoom;
     extern FloatSetting BloomExposure;
     extern FloatSetting BloomMagnitude;
     extern FloatSetting BloomBlurSigma;
@@ -107,8 +142,8 @@ namespace AppSettings
     struct AppSettingsCBuffer
     {
         int32 MSAAMode;
-        int32 FilterType;
-        float FilterSize;
+        int32 ResolveFilterType;
+        float ResolveFilterDiameter;
         float GaussianSigma;
         float CubicB;
         float CubicC;
@@ -120,12 +155,17 @@ namespace AppSettings
         bool32 EnableTemporalAA;
         float TemporalAABlendFactor;
         bool32 UseTemporalColorWeighting;
-        bool32 ClampPrevColor;
+        int32 NeighborhoodClampMode;
+        float VarianceClipGamma;
         float LowFreqWeight;
         float HiFreqWeight;
         float SharpeningAmount;
+        int32 DilationMode;
+        float MipBias;
+        int32 ReprojectionFilter;
+        bool32 UseStandardReprojection;
         int32 CurrentScene;
-        Float4Align Float3 LightDirection;
+        Float3 LightDirection;
         Float4Align Float3 LightColor;
         bool32 EnableDirectLighting;
         bool32 EnableAmbientLighting;
@@ -140,6 +180,7 @@ namespace AppSettings
         float ModelRotationSpeed;
         bool32 DoubleSyncInterval;
         float ExposureScale;
+        bool32 EnableZoom;
         float BloomExposure;
         float BloomMagnitude;
         float BloomBlurSigma;
@@ -170,7 +211,7 @@ namespace AppSettings
 
     inline bool UseNormalMapping()
     {
-        return CurrentScene == Scenes::Plane;
+        return CurrentScene != Scenes::RoboHand;
     }
 
     inline bool EnableJitter()

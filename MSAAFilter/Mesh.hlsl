@@ -321,7 +321,12 @@ PSOutput PS(in PSInput input)
         }
     #endif
 
-    float4 albedoMap = 1.0f;
+    float3 albedoMap = 1.0f;
+    #if UseNormalMapping_
+        albedoMap = AlbedoMap.Sample(AnisoSampler, input.UV).xyz;
+        if(CurrentScene == Scenes_BrickPlane)
+            albedoMap *= albedoMap;
+    #endif
 
     float3 diffuseAlbedo = albedoMap.xyz;
     diffuseAlbedo *= DiffuseIntensity;
@@ -366,6 +371,9 @@ PSOutput PS(in PSInput input)
         lighting += SpecularCubemap.SampleLevel(LinearSampler, reflectWS, mipLevel) * fresnel;
     }
 
+    if(CurrentScene == Scenes_UIPlane)
+        lighting = albedoMap;
+
     PSOutput output;
     output.Color = float4(lighting, 1.0f);
 
@@ -375,6 +383,7 @@ PSOutput PS(in PSInput input)
     prevPositionSS *= RTSize;
     output.Velocity = input.PositionSS.xy - prevPositionSS;
     output.Velocity -= JitterOffset;
+    output.Velocity /= RTSize;
 
     return output;
 }

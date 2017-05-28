@@ -30,32 +30,35 @@
 using namespace SampleFramework11;
 using std::wstring;
 
-const uint32 WindowWidth = 1280;
-const uint32 WindowHeight = 720;
-const float WindowWidthF = static_cast<float>(WindowWidth);
-const float WindowHeightF = static_cast<float>(WindowHeight);
-
 static const float NearClip = 0.01f;
 static const float FarClip = 100.0f;
 
-static const float ModelScales[uint64(Scenes::NumValues)] = { 0.1f, 1.0f };
-static const Float3 ModelPositions[uint64(Scenes::NumValues)] = { Float3(-1.0f, 2.0f, 0.0f), Float3(0.0f, 0.0f, 0.0f) };
+static const float ModelScales[uint64(Scenes::NumValues)] = { 0.1f, 1.0f, 1.0f, 5.0f, 0.01f, };
+static const Float3 ModelPositions[uint64(Scenes::NumValues)] = { Float3(-1.0f, 2.0f, 0.0f), Float3(0.0f, 0.0f, 0.0f), Float3(0.0f, 0.0f, 0.0f), Float3(0.0f, 0.0f, 0.0f), Float3(0.0f, 0.0f, 0.0f) };
 
 // Model filenames
-static const wstring ModelPaths[uint64(Scenes::NumValues)] =
+static const wchar* ModelPaths[uint64(Scenes::NumValues)] =
 {
     L"..\\Content\\Models\\RoboHand\\RoboHand.meshdata",
-    L"",
+    nullptr,
+    nullptr,
+    L"..\\Content\\Models\\Soldier\\Soldier.sdkmesh",
+    L"..\\Content\\Models\\Tower\\Tower.sdkmesh",
+};
+
+static const wchar* ModelNormalMapSuffix[uint64(Scenes::NumValues)] =
+{
+    nullptr,
+    nullptr,
+    nullptr,
+    L"_norm",
+    nullptr
 };
 
 MSAAFilter::MSAAFilter() :  App(L"MSAA Filtering 2.0", MAKEINTRESOURCEW(IDI_DEFAULT)),
-                            camera(WindowWidthF / WindowHeightF, Pi_4 * 0.75f, NearClip, FarClip)
+                            camera(16.0f / 9.0f, Pi_4 * 0.75f, NearClip, FarClip)
 {
-    deviceManager.SetBackBufferWidth(WindowWidth);
-    deviceManager.SetBackBufferHeight(WindowHeight);
     deviceManager.SetMinFeatureLevel(D3D_FEATURE_LEVEL_11_0);
-
-    window.SetClientArea(WindowWidth, WindowHeight);
 }
 
 void MSAAFilter::BeforeReset()
@@ -94,11 +97,16 @@ void MSAAFilter::Initialize()
     // Load the scenes
     for(uint64 i = 0; i < uint64(Scenes::NumValues); ++i)
     {
-        if(i == uint64(Scenes::Plane))
+        if(i == uint64(Scenes::BrickPlane))
             models[i].GeneratePlaneScene(device, Float2(10.0f, 10.0f), Float3(), Quaternion(),
-                                         L"", L"Bricks_NML.dds");
+                                         L"Bricks.dds", L"Bricks_NML.dds");
+        else if(i == uint64(Scenes::UIPlane))
+            models[i].GeneratePlaneScene(device, Float2(10.0f, 10.0f), Float3(), Quaternion(),
+                                         L"UI.png", L"");
+        else if(i == uint64(Scenes::RoboHand))
+            models[i].CreateFromMeshData(device, ModelPaths[i]);
         else
-            models[i].CreateFromMeshData(device, ModelPaths[i].c_str());
+            models[i].CreateFromSDKMeshFile(device, ModelPaths[i], ModelNormalMapSuffix[i], true);
     }
 
     modelOrientations[uint64(Scenes::RoboHand)] = Quaternion(0.41f, -0.55f, -0.29f, 0.67f);
@@ -144,12 +152,11 @@ void MSAAFilter::CreateRenderTargets()
     const uint32 Quality = NumSamples > 0 ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
     colorTarget.Initialize(device, width, height, DXGI_FORMAT_R16G16B16A16_FLOAT, 1, NumSamples, Quality);
     depthBuffer.Initialize(device, width, height, DXGI_FORMAT_D32_FLOAT, true, NumSamples, Quality);
-    velocityTarget.Initialize(device, width, height, DXGI_FORMAT_R16G16_FLOAT, true, NumSamples, Quality);
+    velocityTarget.Initialize(device, width, height, DXGI_FORMAT_R16G16_SNORM, true, NumSamples, Quality);
 
     if(resolveTarget.Width != width || resolveTarget.Height != height)
     {
         resolveTarget.Initialize(device, width, height, colorTarget.Format);
-        velocityResolveTarget.Initialize(device, width, height, velocityTarget.Format);
         prevFrameTarget.Initialize(device, width, height, colorTarget.Format);
     }
 }
@@ -203,19 +210,27 @@ void MSAAFilter::Update(const Timer& timer)
     Float2 jitter = 0.0f;
     if(AppSettings::EnableTemporalAA && AppSettings::EnableJitter() && AppSettings::UseStandardResolve == false)
     {
-        const float jitterScale = 0.5f;
-
         if(AppSettings::JitterMode == JitterModes::Uniform2x)
         {
             jitter = frameCount % 2 == 0 ? -0.5f : 0.5f;
         }
-        else if(AppSettings::JitterMode == JitterModes::Hammersly16)
+        else if(AppSettings::JitterMode == JitterModes::Hammersley4x)
+        {
+            uint64 idx = frameCount % 4;
+            jitter = Hammersley2D(idx, 4) * 2.0f - Float2(1.0f);
+        }
+        else if(AppSettings::JitterMode == JitterModes::Hammersley8x)
+        {
+            uint64 idx = frameCount % 8;
+            jitter = Hammersley2D(idx, 8) * 2.0f - Float2(1.0f);
+        }
+        else if(AppSettings::JitterMode == JitterModes::Hammersley16x)
         {
             uint64 idx = frameCount % 16;
-            jitter = Hammersley2D(idx, 16) - Float2(0.5f);
+            jitter = Hammersley2D(idx, 16) * 2.0f - Float2(1.0f);
         }
 
-        jitter *= jitterScale;
+        jitter *= AppSettings::JitterScale;
 
         const float offsetX = jitter.x * (1.0f / colorTarget.Width);
         const float offsetY = jitter.y * (1.0f / colorTarget.Height);
@@ -249,16 +264,9 @@ void MSAAFilter::Update(const Timer& timer)
 void MSAAFilter::RenderAA()
 {
     PIXEvent pixEvent(L"MSAA Resolve + Temporal AA");
+    ProfileBlock profileBlock(L"MSAA Resolve + Temporal AA");
 
     ID3D11DeviceContext* context = deviceManager.ImmediateContext();
-
-    ID3D11ShaderResourceView* velocitySRV = velocityTarget.SRView;
-    if(AppSettings::NumMSAASamples() > 1)
-    {
-        context->ResolveSubresource(velocityResolveTarget.Texture, 0, velocityTarget.Texture, 0, velocityTarget.Format);
-        velocitySRV = velocityResolveTarget.SRView;
-    }
-
 
     ID3D11RenderTargetView* rtvs[1] = { resolveTarget.RTView };
 
@@ -273,7 +281,7 @@ void MSAAFilter::RenderAA()
         return;
     }
 
-    const uint32 SampleRadius = static_cast<uint32>((AppSettings::FilterSize / 2.0f) + 0.499f);
+    const uint32 SampleRadius = static_cast<uint32>((AppSettings::ResolveFilterDiameter / 2.0f) + 0.499f);
     ID3D11PixelShader* pixelShader = resolvePS[AppSettings::MSAAMode];
     context->PSSetShader(pixelShader, nullptr, 0);
     context->VSSetShader(resolveVS, nullptr, 0);
@@ -283,11 +291,11 @@ void MSAAFilter::RenderAA()
     resolveConstants.ApplyChanges(context);
     resolveConstants.SetPS(context, 0);
 
-    ID3D11ShaderResourceView* srvs[3] = { colorTarget.SRView, prevFrameTarget.SRView, velocitySRV };
-    context->PSSetShaderResources(0, 3, srvs);
+    ID3D11ShaderResourceView* srvs[] = { colorTarget.SRView, velocityTarget.SRView, depthBuffer.SRView, prevFrameTarget.SRView};
+    context->PSSetShaderResources(0, ArraySize_(srvs), srvs);
 
-    ID3D11SamplerState* samplers[1] = { samplerStates.LinearClamp() };
-    context->PSSetSamplers(0, 1, samplers);
+    ID3D11SamplerState* samplers[] = { samplerStates.LinearClamp(), samplerStates.Point() };
+    context->PSSetSamplers(0, ArraySize_(samplers), samplers);
 
     ID3D11Buffer* vbs[1] = { nullptr };
     UINT strides[1] = { 0 };
